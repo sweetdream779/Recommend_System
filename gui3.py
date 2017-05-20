@@ -11,6 +11,14 @@ import sip
 from  functools import partial
 from ratingWidget import RatingWidget
 
+def getLogin(UserID):
+    connection = pymysql.connect(host='localhost', user='root', passwd='', db='movies')
+    cursor = connection.cursor()
+    sql="SELECT `Name` FROM `users` WHERE `UserID`=%s"
+    cursor.execute(sql, (int(UserID),))
+    name = cursor.fetchone()[0]
+    return name
+
 def getFilms(mode,ganre,film=None):
     connection = pymysql.connect(host='localhost', user='root', passwd='', db='movies')
     cursor = connection.cursor()
@@ -157,11 +165,12 @@ def insertRate(idUser, idMovie, rate):
     connection.close()
 
 class Films(QWidget):
-    def __init__(self,id,page,films):
+    def __init__(self,id,page,films,selected):
         super().__init__()
         self.UserID=id
         self.current_page=page
         self.films=films
+        self.selected=selected
         self.initUI()
 
     def initUI(self):
@@ -190,17 +199,20 @@ class Films(QWidget):
             ganres = QtWidgets.QLabel(films[i][5].replace("|", ","))
             title.setWordWrap(True)
             ganres.setWordWrap(True)
-
             im = QtWidgets.QLabel()
-            data = urllib.request.urlopen(films[i][2]).read()
-            image = QtGui.QImage()
-            image.loadFromData(data)
-            wid = image.width()
-            hei = image.height()
-            pixmap = QtGui.QPixmap(image)
-            #pixmap = pixmap.scaled(wid, hei)
-            im.setPixmap(pixmap)
-            im.setFixedSize(wid, hei)
+            if(not self.selected):
+                data = urllib.request.urlopen(films[i][2]).read()
+                image = QtGui.QImage()
+                image.loadFromData(data)
+                wid = image.width()
+                hei = image.height()
+                pixmap = QtGui.QPixmap(image)
+                #pixmap = pixmap.scaled(wid, hei)
+                im.setPixmap(pixmap)
+                im.setFixedSize(wid, hei)
+                self.width = pixmap.width()
+            else:
+                self.width=182
 
             yourRating = QWidget()
             yourRating_layout = QtWidgets.QHBoxLayout(yourRating)
@@ -214,12 +226,11 @@ class Films(QWidget):
             rates_layout.addWidget(imdb)
             button = QtWidgets.QPushButton("Estimate")
             button.setFixedSize(70, 20)
-            button.setStyleSheet("background-color:white; color:black; font:15px;")
+            button.setStyleSheet("background-color:rgba(5,232,217,0.3); color:black; font:15px;")
             self.bool.append(False)
             button.clicked.connect(partial(self.estimate, films[i][4], j, ost, i,rating_value))
             rates_layout.addWidget(button)
 
-            self.width=pixmap.width()
             inform = QWidget()
             inform_layout = QtWidgets.QVBoxLayout(inform)
             layout.addWidget(im,0,0)
@@ -270,9 +281,10 @@ class Films(QWidget):
         insertRate(self.UserID,movieID,value)
 
 class AllFilms(QMainWindow):
-    def __init__(self,id):
+    def __init__(self,id,selected):
         super().__init__()
         self.UserID=id
+        self.selected=selected
         self.initUI()
 
     def initUI(self):
@@ -315,7 +327,7 @@ class AllFilms(QMainWindow):
 
         self.imgs, self.numFilms = getFilms(self.mode, self.ganre)
 
-        self.central=Films(self.UserID,self.currentPage,self.imgs)
+        self.central=Films(self.UserID,self.currentPage,self.imgs,self.selected)
         self.top=QWidget()
         self.top.setLayout(self.top_layout)
         self.left=QWidget()
@@ -501,7 +513,7 @@ class AllFilms(QMainWindow):
             self.splitterV.insertWidget(0, self.central)
         else:
             self.numPages = math.ceil(self.numFilms / 20)
-            self.central = Films(self.UserID, self.currentPage, self.imgs)
+            self.central = Films(self.UserID, self.currentPage, self.imgs,self.selected)
             self.splitterV.insertWidget(0, self.central)
             if self.numPages>1:
                 self.bottom = QWidget()
@@ -515,7 +527,7 @@ class AllFilms(QMainWindow):
         self.central.hide()
         self.central.deleteLater()
         del self.central
-        self.central=Films(self.UserID,self.currentPage,self.imgs)
+        self.central=Films(self.UserID,self.currentPage,self.imgs,self.selected)
         self.splitterV.insertWidget(0,self.central)
         sip.delete(self.bottom)
         del self.bottom
@@ -553,7 +565,7 @@ class AllFilms(QMainWindow):
         #self.central.deleteLater()
         #del self.central
         sip.delete(self.central)
-        self.central = Films(self.UserID, self.currentPage,self.imgs)
+        self.central = Films(self.UserID, self.currentPage,self.imgs,self.selected)
         self.splitterV.insertWidget(0, self.central)
 
         if hasattr(self, 'bottom'):
@@ -563,18 +575,25 @@ class AllFilms(QMainWindow):
         self.pages(self.numPages)
 
     def ganres(self):
+        self.yourID = QtWidgets.QLabel("Your login: " + getLogin(self.UserID))
+        self.yourID.setWordWrap(True)
+        self.yourID.setFixedSize(100, 46)
+        self.yourID.setObjectName("id")
+
+        self.main_layout.addWidget(self.yourID, 0, 0)
         self.ganresL = QtWidgets.QLabel("All ganres")
         self.ganresL.setObjectName("ganresL")
-        self.main_layout.addWidget(self.ganresL,0,0)
+        self.main_layout.addWidget(self.ganresL,1,0)
         allGanres=['Action', 'Adventure', 'Animation', 'Children', 'Comedy', 'Crime', 'Documentary', 'Drama', 'Fantasy','Film-Noir', 'Horror', 'IMAX', 'Musical', 'Mystery','Romance', 'Sci-Fi', 'Thriller', 'War', 'Western']
         allGanres.sort()
 
         for i in range(len(allGanres)):
             ganre=QtWidgets.QPushButton(allGanres[i])
-            self.main_layout.addWidget(ganre,i+1,0)
+            self.main_layout.addWidget(ganre,i+2,0)
             ganre.setFixedSize(150,20)
             ganre.clicked.connect(self.set_ganre)
         self.ganresL.setStyleSheet("""color:white;font:20px;""")
+        self.yourID.setStyleSheet("""color:white;font:16px;""")
 
     def set_ganre(self):
         if not hasattr(self, 'sortRateButton'):
@@ -597,7 +616,7 @@ class AllFilms(QMainWindow):
 
         sip.delete(self.central)
         del self.central
-        self.central = Films(self.UserID, self.currentPage,self.imgs)
+        self.central = Films(self.UserID, self.currentPage,self.imgs,self.selected)
         self.splitterV.insertWidget(0, self.central)
 
         if hasattr(self, 'bottom'):
