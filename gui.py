@@ -5,6 +5,8 @@ from PyQt5.QtCore import Qt,QSize,QMargins
 #import first.py
 import pymysql
 from gui2 import Form2
+from sign_up import Sign_Up
+from new import Example
 
 def RepresentsInt(s):
     try:
@@ -32,7 +34,7 @@ class Authorization(QMainWindow):
         self.auto = QtWidgets.QLabel("Autorization")
         self.auto.setFixedSize(410,20)
         self.auto.setObjectName('auto')
-        self.id = QtWidgets.QLabel("Your ID ")
+        self.id = QtWidgets.QLabel("Your login ")
         self.password = QtWidgets.QLabel("Your password  ")
         self.idEdit = QtWidgets.QLineEdit()
         self.passEdit = QtWidgets.QLineEdit()
@@ -140,6 +142,11 @@ class Authorization(QMainWindow):
         self.main_layout.addWidget(self.btn_widget, 5, 4,1,2)
         #self.main_layout.addWidget(QtWidgets.QLabel(""), 5, 0)
 
+        self.check = QtWidgets.QCheckBox("Don't show images")
+        self.main_layout.addWidget(self.check,6,3,1,4)
+        self.check.stateChanged.connect(lambda:self.btnstate(self.check))
+        self.selected=False
+
         self.setCentralWidget(self.main_widget)
 
         self.setStyleSheet("""
@@ -176,23 +183,21 @@ class Authorization(QMainWindow):
                 self.message.deleteLater()
                 del self.message
             id=self.idEdit.text()
-            if not RepresentsInt(id):
-                self.message = QtWidgets.QLabel("ID must be integer value.")
-                self.main_layout.addWidget(self.message,4,3,1,4)
-            else:
-                connection = pymysql.connect(host='localhost', user='root', passwd='', db='movies')
-                cursor = connection.cursor()
-                sql="SELECT * FROM `ratings` WHERE `UserID`=%s"
-                cursor.execute(sql, (id,))
-                line=cursor.fetchone()
-                if line is None:
-                    self.message = QtWidgets.QLabel("Print all fields.")
+            pswd=self.passEdit.text()
+
+            connection = pymysql.connect(host='localhost', user='root', passwd='', db='movies')
+            cursor = connection.cursor()
+            sql="SELECT * FROM `users` WHERE `Name`=%s"
+            cursor.execute(sql, (id,))
+            line=cursor.fetchone()
+            if line is None:
+                    self.message = QtWidgets.QLabel("Incorrect login.")
                     self.main_layout.addWidget(self.message,4,3,1,4)
-                else:
-                    if self.passEdit.text()==id:
+            else:
+                    if pswd==line[2]:
                         self.message = QtWidgets.QLabel("Success")
                         self.main_layout.addWidget(self.message,4,3,1,4)
-                        self.dialog = Form2(id)
+                        self.dialog = Form2(line[0],self.selected)
                         self.dialog.show()
                         self.close()
                     else:
@@ -204,7 +209,15 @@ class Authorization(QMainWindow):
             self.message.setStyleSheet('QLabel#message {color: rgba(255,0,0,0.7); font:17px;}')
 
         if b.text()=='Sign up':
-            pass
+            self.dialog = Sign_Up(self.selected)
+            self.dialog.show()
+            self.close()
+
+    def btnstate(self,b):
+        if b.isChecked() == True:
+            self.selected=True
+        else:
+            self.selected=False
 
     def close_app(self):
         sys.exit()
