@@ -191,7 +191,7 @@ class Example(QMainWindow):
         self.LabelLayout = QHBoxLayout(self.LabelWidget)
         self.LabelLayout.addWidget(self.Label1)
         self.LabelLayout.addWidget(self.Label2)
-        self.LabelWidget.setFixedSize(300,30)
+        self.LabelWidget.setFixedSize(300,40)
         self.Label1.setObjectName("Label1")
         self.Label2.setObjectName("Label2")
 
