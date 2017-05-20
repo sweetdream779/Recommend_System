@@ -13,17 +13,24 @@ import math
 import numpy as np
 from scipy.optimize import fmin_cg, minimize,check_grad
 from main import collaborative_filtering
+import sip
+from my_ratings import MyRatings, getRates
+import random
 
 def getRecomends(id):
-    contentBased = ContentBased()
-    ids=contentBased.getPredictions(int(id),10)
+    #contentBased = ContentBased()
+    #ids=contentBased.getPredictions(int(id),10)
+    A = collaborative_filtering(int(id), nBestProducts=20)
+    ids = A.makeRecommendation()
     connection = pymysql.connect(host='localhost', user='root', passwd='', db='movies')
     films = []
     j=0
     for i in range(len(ids)):
         cursor = connection.cursor()
-        sql="SELECT `links`.`Image`,`links`.`ImbdRate`,`movies`.`Title`,`movies`.`Year`,`movies`.`MovieID`, `movies`.`AllGanres`" \
-                      "FROM `links` JOIN `movies` ON `links`.`MovieID`=`movies`.`MovieID` WHERE `links`.`Id`=%s"
+        #sql="SELECT `links`.`Image`,`links`.`ImbdRate`,`movies`.`Title`,`movies`.`Year`,`movies`.`MovieID`, `movies`.`AllGanres`" \
+        #              "FROM `links` JOIN `movies` ON `links`.`MovieID`=`movies`.`MovieID` WHERE `links`.`Id`=%s"
+        sql = "SELECT `links`.`Image`,`links`.`ImbdRate`,`movies`.`Title`,`movies`.`Year`,`movies`.`MovieID`, `movies`.`AllGanres`,`links`.`Id`" \
+                  "FROM `links` JOIN `movies` ON `links`.`MovieID`=`movies`.`MovieID` WHERE `movies`.`MovieID`=%s"
         cursor.execute(sql,(int(ids[i]),))
         film=cursor.fetchone()
         films.append([])
@@ -36,26 +43,26 @@ def getRecomends(id):
         films[j].append(film[5])
         j=j+1
         cursor.close()
-    A = collaborative_filtering(int(id),nBestProducts=10)
-    ids2 = A.makeRecommendation()
-    for i in range(len(ids)):
-        cursor = connection.cursor()
-        sql = "SELECT `links`.`Image`,`links`.`ImbdRate`,`movies`.`Title`,`movies`.`Year`,`movies`.`MovieID`, `movies`.`AllGanres`,`links`.`Id`" \
-          "FROM `links` JOIN `movies` ON `links`.`MovieID`=`movies`.`MovieID` WHERE `movies`.`MovieID`=%s"
-        cursor.execute(sql, (int(ids2[i]),))
-        film = cursor.fetchone()
-        if film[6] in ids:
-            continue
-        films.append([])
+    #A = collaborative_filtering(int(id),nBestProducts=10)
+    #ids2 = A.makeRecommendation()
+    #for i in range(len(ids)):
+    #    cursor = connection.cursor()
+    #    sql = "SELECT `links`.`Image`,`links`.`ImbdRate`,`movies`.`Title`,`movies`.`Year`,`movies`.`MovieID`, `movies`.`AllGanres`,`links`.`Id`" \
+    #      "FROM `links` JOIN `movies` ON `links`.`MovieID`=`movies`.`MovieID` WHERE `movies`.`MovieID`=%s"
+    #    cursor.execute(sql, (int(ids2[i]),))
+    #    film = cursor.fetchone()
+    #    if film[6] in ids:
+    #        continue
+    #    films.append([])
         # Title,Year,Image,ImdbRate,ID,Ganres
-        films[j].append(film[2])
-        films[j].append(film[3])
-        films[j].append(film[0])
-        films[j].append(film[1])
-        films[j].append(film[4])
-        films[j].append(film[5])
-        j=j+1
-        cursor.close()
+    #    films[j].append(film[2])
+    #    films[j].append(film[3])
+    #    films[j].append(film[0])
+     #   films[j].append(film[1])
+    #    films[j].append(film[4])
+    #    films[j].append(film[5])
+    #    j=j+1
+    #    cursor.close()
     #print(films)
     connection.close()
     return films
@@ -137,10 +144,19 @@ def insertRate(idUser, idMovie, rate):
     cursor1.close()
     connection.close()
 
+def getLogin(UserID):
+    connection = pymysql.connect(host='localhost', user='root', passwd='', db='movies')
+    cursor = connection.cursor()
+    sql="SELECT `Name` FROM `users` WHERE `UserID`=%s"
+    cursor.execute(sql, (int(UserID),))
+    name = cursor.fetchone()[0]
+    return name
+
 class Films(QWidget):
-    def __init__(self,id):
+    def __init__(self,id,selected):
         super().__init__()
         self.UserID=id
+        self.selected1=selected
         self.initUI()
 
     def initUI(self):
@@ -163,25 +179,27 @@ class Films(QWidget):
             layout.setContentsMargins(0,0,0,0)
             title = QtWidgets.QLabel(films[i][0] + " (" + str(films[i][1]) + ")")
             imdb = QtWidgets.QLabel("Imdb: " + str(films[i][3]))
-            ganres = QtWidgets.QLabel(films[i][5].replace("|",","))
+            ganres = QtWidgets.QLabel(films[i][5].replace("|",", "))
             title.setWordWrap(True)
             ganres.setWordWrap(True)
             #shadow = QGraphicsDropShadowEffect(self)
             #shadow.setBlurRadius(5)
             im = QtWidgets.QLabel()
-            data = urllib.request.urlopen(films[i][2]).read()
-            image = QtGui.QImage()
-            image.loadFromData(data)
-            wid=image.width()
-            hei=image.height()
-            pixmap = QtGui.QPixmap(image)
-            pixmap=pixmap.scaled(wid,hei)
-            im.setPixmap(pixmap)
-            im.setFixedSize(wid,hei)
-            #im.setGraphicsEffect(shadow)
-            self.width = pixmap.width()
-            # print(width)
-
+            if(not self.selected1):
+                data = urllib.request.urlopen(films[i][2]).read()
+                image = QtGui.QImage()
+                image.loadFromData(data)
+                wid=image.width()
+                hei=image.height()
+                pixmap = QtGui.QPixmap(image)
+                pixmap=pixmap.scaled(wid,hei)
+                im.setPixmap(pixmap)
+                im.setFixedSize(wid,hei)
+                #im.setGraphicsEffect(shadow)
+                self.width = pixmap.width()
+                # print(width)
+            else:
+                self.width =182
             yourRating = QWidget()
             yourRating_layout = QtWidgets.QHBoxLayout(yourRating)
             rating_label = QtWidgets.QLabel('Your rate:')
@@ -194,23 +212,24 @@ class Films(QWidget):
             rates_layout.addWidget(imdb)
             button=QtWidgets.QPushButton("Estimate")
             button.setFixedSize(70,20)
-            button.setStyleSheet("background-color:white; color:black; font:15px;")
+            button.setObjectName("button")
+            button.setStyleSheet("background-color:rgba(5,232,217,0.3); color:black; font:15px;")
             self.bool.append(False)
             button.clicked.connect(partial(self.estimate,films[i][4],j,ost,i,rating_value))
             rates_layout.addWidget(button)
 
             inform=QWidget()
             imform_layout = QtWidgets.QVBoxLayout(inform)
+
             layout.addWidget(im,0,0)
+
             imform_layout.addWidget(title)
             imform_layout.addWidget(ganres)
             imform_layout.addWidget(rates)
             imform_layout.addWidget(yourRating)
             layout.addWidget(inform,1,0)
             inform.setFixedWidth(self.width)
-            #inform.setMaximumHeight(150)
             inform.setObjectName("inform")
-            # layout.addWidget(informButton)
             self.grid.addWidget(w, j, ost)
             self.setStyleSheet("""
                 QLabel{color:white;
@@ -251,9 +270,10 @@ class Films(QWidget):
         insertRate(self.UserID,movieID,value)
 
 class Form2(QMainWindow):
-    def __init__(self,id):
+    def __init__(self,id,selected):
         super().__init__()
         self.UserID=id
+        self.selected=selected
         self.initUI()
 
     def initUI(self):
@@ -272,21 +292,34 @@ class Form2(QMainWindow):
         self.title.setAlignment(Qt.AlignCenter)
         self.title.setObjectName('title')
 
+        self.yourID=QtWidgets.QLabel("Your login: "+getLogin(self.UserID))
+        self.yourID.setWordWrap(True)
+        self.yourID.setFixedSize(100,45)
+        self.yourID.setObjectName("id")
         self.my_rates=QtWidgets.QPushButton('My rates')
         self.my_rates.setFixedSize(100,30)
         self.all_films=QtWidgets.QPushButton('All films')
         self.all_films.setFixedSize(100, 30)
+        self.update = QtWidgets.QPushButton('Update')
+        self.update.setFixedSize(100, 30)
+        self.randomFilm = QtWidgets.QPushButton('Random \n film')
+        self.randomFilm.setFixedSize(100, 70)
         self.my_rates.clicked.connect(lambda: self.btn_click(self.my_rates))
         self.all_films.clicked.connect(lambda: self.btn_click(self.all_films))
+        self.update.clicked.connect(lambda: self.btn_click(self.update))
+        self.randomFilm.clicked.connect(lambda: self.btn_click(self.randomFilm))
 
         self.splitterV = QSplitter(Qt.Vertical)
 
-        self.films=Films(self.UserID)
+        self.films=Films(self.UserID,self.selected)
         self.main_widget = QWidget()
         self.main_layout = QtWidgets.QGridLayout(self.main_widget)
         self.main_layout.setSpacing(5)
+        self.main_layout.addWidget(self.yourID,0,0)
         self.main_layout.addWidget(self.all_films,1,0)
         self.main_layout.addWidget(self.my_rates,2,0)
+        self.main_layout.addWidget(self.update,3,0)
+        self.main_layout.addWidget(self.randomFilm, 4, 0)
         self.main_widget.setObjectName('main')
 
         self.scrollWidget = QScrollArea()
@@ -311,13 +344,15 @@ class Form2(QMainWindow):
                     #main{background-image: url(images/back1.jpg);background-attachment: fixed;}
                     QScrollArea { background: transparent; }
                     QScrollArea > QWidget > QWidget { background: transparent; }
+                    #id{font:15px;color:white;}
                     QPushButton {font:20px;
                                 width: 70px;
                                 height: 30px;
                                 color:white;
                                 background-color:rgba(0,0,0,0.3);}
-                    #title {font: 20px; color:white;
+                    #title, #inform {font: 20px; color:white;
                             background-color:rgba(0,0,0,0.3);}
+                    #style-label{font: 20px; color:white;}
 
                     QSplitter::handle{background-color: transparent;}
 
@@ -360,10 +395,103 @@ class Form2(QMainWindow):
                         width: 15px
                       }
                            """)
+    def get_random_film(self):
+        print('Мы в функции get_random_film')
+        connection = pymysql.connect(host='localhost', user='root', passwd='', db='movies')
+        cursor = connection.cursor()
+        sql="SELECT movieID FROM movies"
+        cursor.execute(sql)
+        countMovies = cursor.rowcount
+        print(countMovies)
+        randomFilm = random.randint(1, countMovies)
+        print(randomFilm)
+        print('randomFilm: '+str(randomFilm))
+
+        sql = "SELECT `movies`.`Title`,`movies`.`Year`,`links`.`Image`,`links`.`ImbdRate`,`movies`.`MovieID`, `movies`.`AllGanres` " \
+              "FROM `links` JOIN `movies` ON `links`.`MovieID`=`movies`.`MovieID` WHERE `links`.`id`=%s "
+        cursor.execute(sql, (int(randomFilm),))
+        films=cursor.fetchone()
+        movies=[]
+        movies.append(films)
+        return movies
 
     def btn_click(self,b):
         if b.text()=='My rates':
-            pass
-        if b.text()=='All films':
-            self.dialog = AllFilms(self.UserID)
+            self.dialog = MyRatings(self.UserID,self.selected)
             self.dialog.show()
+        if b.text()=='All films':
+            self.dialog = AllFilms(self.UserID,self.selected)
+            self.dialog.show()
+        if b.text()=='Update':
+            sip.delete(self.films)
+            self.films = Films(self.UserID,self.selected)
+            self.scrollWidget.setWidget(self.films)
+        if b.text() == 'Random \n film':
+            print('Кнопка нажата')
+            sip.delete(self.films)
+            self.films = QWidget()
+            self.films_layout=QtWidgets.QVBoxLayout(self.films)
+            self.scrollWidget.setWidget(self.films)
+            self.films.setObjectName('main')
+            print('Создано новое окно')
+            movie = self.get_random_film()
+            self.myRateRandFilm = getRates(self.UserID, movie)
+            self.widgetRandomFilm = QWidget()
+            title = QtWidgets.QLabel(movie[0][0] + " (" + str(movie[0][1]) + ")")
+            title.setObjectName('style-label')
+            imdb = QtWidgets.QLabel("Imdb: " + str(movie[0][3]))
+            ganres = QtWidgets.QLabel(movie[0][5].replace("|", ", "))
+            ganres.setWordWrap(True)
+            title.setWordWrap(True)
+            imdb.setObjectName('style-label')
+            ganres.setObjectName('style-label')
+            im = QtWidgets.QLabel()
+            im.setObjectName('style-label')
+            data = urllib.request.urlopen(movie[0][2]).read()  # считали ссылку
+            image = QtGui.QImage()
+            image.loadFromData(data)
+            wid = image.width()
+            hei = image.height()
+            pixmap = QtGui.QPixmap(image)
+            pixmap = pixmap.scaled(wid, hei)
+            im.setPixmap(pixmap)
+            im.setFixedSize(wid, hei)
+            self.width = pixmap.width()
+            yourRating = QWidget()
+            yourRating_layout = QtWidgets.QHBoxLayout(yourRating)
+            rating_label = QtWidgets.QLabel('Your rate:')
+            rating_label.setObjectName('style-label')
+            rating_value = QtWidgets.QLabel(str(self.myRateRandFilm[0]))
+            rating_value.setObjectName('style-label')
+            yourRating_layout.addWidget(rating_label)
+            yourRating_layout.addWidget(rating_value)
+            rates = QWidget()
+            rates_layout = QtWidgets.QHBoxLayout(rates)
+            rates_layout.addWidget(imdb)
+            rates_layout.setSpacing(5)
+            inform = QWidget()
+            imform_layout = QtWidgets.QVBoxLayout(inform)
+            self.films_layout.addWidget(im)
+            imform_layout.addWidget(title)
+            imform_layout.addWidget(ganres)
+            imform_layout.addWidget(rates)
+            imform_layout.addWidget(yourRating)
+            imform_layout.setSpacing(1)
+            imform_layout.addStretch(1)
+            self.films_layout.addWidget(inform)
+            inform.setFixedWidth(self.width)
+            inform.setObjectName("inform")
+            '''self.setStyleSheet("""
+                            #main{background-image: url(images/back1.jpg);background-attachment: fixed;}
+                            #style-label{color:white;
+                                    font:15px;}
+                            #title,#inform{background-color:rgba(0,0,0,0.3);
+                            QPushButton {font:20px;
+                                width: 70px;
+                                height: 30px;
+                                color:white;
+                                background-color:rgba(0,0,0,0.3);}
+                            }
+                        """)'''
+            print('Всё ок7')
+
